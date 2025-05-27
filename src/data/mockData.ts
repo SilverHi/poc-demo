@@ -39,46 +39,7 @@ export const mockInputResources: InputResource[] = [
 ];
 
 export const mockAgents: Agent[] = [
-  {
-    id: 'grammar-check',
-    name: 'Grammar Check',
-    description: 'Check text grammar errors and expression standards',
-    icon: '📝',
-    category: 'validation',
-    color: 'bg-blue-500'
-  },
-  {
-    id: 'semantic-analysis',
-    name: 'Semantic Analysis',
-    description: 'Analyze text semantic structure and logical relationships',
-    icon: '🧠',
-    category: 'analysis',
-    color: 'bg-purple-500'
-  },
-  {
-    id: 'requirement-validation',
-    name: 'Requirement Validation',
-    description: 'Validate requirement completeness and feasibility',
-    icon: '✅',
-    category: 'validation',
-    color: 'bg-green-500'
-  },
-  {
-    id: 'story-generation',
-    name: 'Story Generation',
-    description: 'Generate standard User Stories based on input',
-    icon: '📖',
-    category: 'generation',
-    color: 'bg-orange-500'
-  },
-  {
-    id: 'priority-analysis',
-    name: 'Priority Analysis',
-    description: 'Analyze and suggest User Story priorities',
-    icon: '🎯',
-    category: 'analysis',
-    color: 'bg-red-500'
-  },
+  
   {
     id: 'acceptance-criteria',
     name: 'Acceptance Criteria',
