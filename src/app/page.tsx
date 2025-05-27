@@ -8,6 +8,29 @@ import InputResourceCard from '@/components/InputResourceCard';
 import AgentCard from '@/components/AgentCard';
 import WorkflowStepComponent from '@/components/WorkflowStep';
 import { useRouter } from 'next/navigation';
+import { 
+  Layout, 
+  Typography, 
+  Button, 
+  Input, 
+  Card, 
+  Space, 
+  Tag, 
+  Empty,
+  Avatar
+} from 'antd';
+import { 
+  ToolOutlined, 
+  ClearOutlined, 
+  UploadOutlined, 
+  SearchOutlined,
+  RocketOutlined,
+  PlayCircleOutlined
+} from '@ant-design/icons';
+
+const { Header, Content, Sider } = Layout;
+const { Title, Text } = Typography;
+const { TextArea } = Input;
 
 interface CustomAgent {
   id: string;
@@ -232,173 +255,192 @@ export default function Home() {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <Layout className="min-h-screen">
       {/* Header */}
-      <header className="bg-white border-b border-gray-200 px-6 py-4">
-        <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-2xl font-bold text-gray-900">User Story Generator</h1>
-            <p className="text-sm text-gray-600">AI Agent-based Intelligent Requirements Analysis and Story Generation Platform</p>
-          </div>
-          <div className="flex gap-3">
-            <button
-              onClick={() => router.push('/agents')}
-              className="px-4 py-2 text-sm font-medium text-white bg-green-600 rounded-lg hover:bg-green-700 transition-colors"
-            >
-              🛠️ Agent Builder
-            </button>
-            <button
-              onClick={clearWorkflow}
-              className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
-            >
-              Clear Workflow
-            </button>
-          </div>
+      <Header className="bg-white border-b border-gray-200 px-6 flex items-center justify-between">
+        <div>
+          <Title level={2} className="mb-0 text-gray-900">User Story Generator</Title>
+          <Text type="secondary" className="text-sm">
+            AI Agent-based Intelligent Requirements Analysis and Story Generation Platform
+          </Text>
         </div>
-      </header>
+        <Space>
+          <Button
+            type="primary"
+            icon={<ToolOutlined />}
+            onClick={() => router.push('/agents')}
+            className="bg-green-600 hover:bg-green-700 border-green-600"
+          >
+            Agent Builder
+          </Button>
+          <Button
+            icon={<ClearOutlined />}
+            onClick={clearWorkflow}
+          >
+            Clear Workflow
+          </Button>
+        </Space>
+      </Header>
 
-      <div className="flex h-[calc(100vh-80px)]">
+      <Layout className="h-[calc(100vh-80px)]">
         {/* Left Sidebar - Input Resources */}
-        <div className="w-80 bg-white border-r border-gray-200 flex flex-col">
+        <Sider width={320} className="bg-white border-r border-gray-200 flex flex-col" theme="light">
           <div className="p-4 border-b border-gray-200">
-            <div className="flex items-center justify-between mb-2">
-              <h2 className="text-lg font-semibold text-gray-900">Input Resources</h2>
-              <button
+            <Space className="w-full justify-between mb-2">
+              <Title level={4} className="mb-0 text-gray-900">Input Resources</Title>
+              <Button
+                type="primary"
+                size="small"
+                icon={<UploadOutlined />}
                 onClick={() => router.push('/resources')}
-                className="px-3 py-1 text-xs font-medium text-white bg-blue-600 rounded hover:bg-blue-700 transition-colors"
               >
-                📤 管理
-              </button>
-            </div>
-            <p className="text-sm text-gray-600">Select relevant documents and templates as reference</p>
+                管理
+              </Button>
+            </Space>
+            <Text type="secondary" className="text-sm">
+              Select relevant documents and templates as reference
+            </Text>
           </div>
           
           {/* Search Box */}
           <div className="p-4 border-b border-gray-200">
-            <div className="relative">
-              <input
-                type="text"
-                placeholder="搜索资源..."
-                value={resourceSearchQuery}
-                onChange={(e) => setResourceSearchQuery(e.target.value)}
-                className="w-full pl-8 pr-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-              />
-              <div className="absolute inset-y-0 left-0 pl-2 flex items-center pointer-events-none">
-                <span className="text-gray-400 text-sm">🔍</span>
-              </div>
-            </div>
+            <Input
+              placeholder="搜索资源..."
+              value={resourceSearchQuery}
+              onChange={(e) => setResourceSearchQuery(e.target.value)}
+              prefix={<SearchOutlined />}
+              allowClear
+            />
           </div>
 
-          <div className="flex-1 overflow-y-auto p-4 space-y-3">
+          <div className="flex-1 overflow-y-auto p-4">
             {filteredStoredResources.length === 0 ? (
-              <div className="text-center py-8">
-                <div className="text-2xl mb-2">📚</div>
-                <p className="text-sm text-gray-500">
-                  {resourceSearchQuery ? '未找到匹配的资源' : '暂无资源'}
-                </p>
-                <p className="text-xs text-gray-400 mt-1">
-                  {resourceSearchQuery ? '试试其他搜索词' : '点击管理按钮上传文档'}
-                </p>
-              </div>
+              <Empty
+                image={Empty.PRESENTED_IMAGE_SIMPLE}
+                description={
+                  <div>
+                    <Text type="secondary">
+                      {resourceSearchQuery ? '未找到匹配的资源' : '暂无资源'}
+                    </Text>
+                    <br />
+                    <Text type="secondary" className="text-xs">
+                      {resourceSearchQuery ? '试试其他搜索词' : '点击管理按钮上传文档'}
+                    </Text>
+                  </div>
+                }
+              />
             ) : (
-              filteredStoredResources.map(resource => {
-                const inputResource: InputResource = {
-                  id: resource.id,
-                  title: resource.title,
-                  type: resource.type === 'pdf' ? 'pdf' : resource.type === 'md' ? 'md' : 'text',
-                  content: resource.parsedContent,
-                  description: resource.description
-                };
-                return (
-                  <InputResourceCard
-                    key={resource.id}
-                    resource={inputResource}
-                    isSelected={selectedResources.some(r => r.id === resource.id)}
-                    onSelect={handleResourceSelect}
-                  />
-                );
-              })
+              <div className="space-y-3">
+                {filteredStoredResources.map(resource => {
+                  const inputResource: InputResource = {
+                    id: resource.id,
+                    title: resource.title,
+                    type: resource.type === 'pdf' ? 'pdf' : resource.type === 'md' ? 'md' : 'text',
+                    content: resource.parsedContent,
+                    description: resource.description
+                  };
+                  return (
+                    <InputResourceCard
+                      key={resource.id}
+                      resource={inputResource}
+                      isSelected={selectedResources.some(r => r.id === resource.id)}
+                      onSelect={handleResourceSelect}
+                    />
+                  );
+                })}
+              </div>
             )}
           </div>
-        </div>
+        </Sider>
 
         {/* Center - Main Workspace */}
-        <div className="flex-1 flex flex-col">
+        <Content className="flex flex-col">
           {/* Input Area */}
-          <div className="bg-white border-b border-gray-200 p-6">
+          <Card className="border-b border-gray-200 rounded-none">
             <div className="mb-4">
-              <label className="block text-sm font-medium text-gray-700 mb-2">
+              <Text strong className="text-sm text-gray-700 mb-2 block">
                 Input Content
-              </label>
-              <textarea
+              </Text>
+              <TextArea
                 value={userInput}
                 onChange={(e) => setUserInput(e.target.value)}
                 placeholder="Please enter your requirements description, questions or content to be processed..."
-                className="w-full h-32 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 resize-none"
+                rows={4}
+                className="resize-none"
               />
             </div>
             
             {/* Selected Resources Display */}
             {selectedResources.length > 0 && (
               <div className="mb-4">
-                <label className="block text-sm font-medium text-gray-700 mb-2">
+                <Text strong className="text-sm text-gray-700 mb-2 block">
                   Selected Reference Resources ({selectedResources.length})
-                </label>
-                <div className="flex flex-wrap gap-2">
+                </Text>
+                <Space wrap>
                   {selectedResources.map(resource => (
-                    <span
+                    <Tag
                       key={resource.id}
-                      className="inline-flex items-center px-3 py-1 rounded-full text-sm bg-blue-100 text-blue-800"
+                      closable
+                      onClose={() => handleResourceSelect(resource)}
+                      color="blue"
                     >
                       {resource.title}
-                      <button
-                        onClick={() => handleResourceSelect(resource)}
-                        className="ml-2 text-blue-600 hover:text-blue-800"
-                      >
-                        ×
-                      </button>
-                    </span>
+                    </Tag>
                   ))}
-                </div>
+                </Space>
               </div>
             )}
 
             {/* Selected Agent and Execute Button */}
             {selectedAgent && (
-              <div className="flex items-center gap-4 p-4 bg-blue-50 rounded-lg border border-blue-200">
-                <div className="flex items-center gap-3 flex-1">
-                  <div className={`w-8 h-8 rounded-lg ${selectedAgent.color} flex items-center justify-center text-white text-sm`}>
-                    {selectedAgent.icon}
-                  </div>
-                  <div>
-                    <h3 className="font-medium text-gray-900">{selectedAgent.name}</h3>
-                    <p className="text-sm text-gray-600">{selectedAgent.description}</p>
-                  </div>
-                </div>
-                <button
-                  onClick={handleExecute}
-                  disabled={!canExecute()}
-                  className={`px-6 py-2 rounded-lg font-medium transition-colors ${
-                    canExecute()
-                      ? 'bg-blue-600 text-white hover:bg-blue-700'
-                      : 'bg-gray-300 text-gray-500 cursor-not-allowed'
-                  }`}
-                >
-                  {isExecuting ? 'Executing...' : 'Execute'}
-                </button>
-              </div>
+              <Card className="bg-blue-50 border-blue-200">
+                <Space className="w-full justify-between" align="center">
+                  <Space align="center">
+                    <Avatar 
+                      className={selectedAgent.color}
+                      size="large"
+                      style={{ 
+                        backgroundColor: selectedAgent.color.includes('bg-') ? undefined : selectedAgent.color,
+                        color: 'white'
+                      }}
+                    >
+                      {selectedAgent.icon}
+                    </Avatar>
+                    <div>
+                      <Text strong className="text-gray-900">{selectedAgent.name}</Text>
+                      <div className="text-sm text-gray-600">{selectedAgent.description}</div>
+                    </div>
+                  </Space>
+                  <Button
+                    type="primary"
+                    icon={<PlayCircleOutlined />}
+                    onClick={handleExecute}
+                    disabled={!canExecute()}
+                    loading={isExecuting}
+                  >
+                    {isExecuting ? 'Executing...' : 'Execute'}
+                  </Button>
+                </Space>
+              </Card>
             )}
-          </div>
+          </Card>
 
           {/* Workflow Area */}
           <div className="flex-1 overflow-y-auto p-6" ref={workflowRef}>
             {workflowSteps.length === 0 ? (
-              <div className="flex items-center justify-center h-full text-gray-500">
-                <div className="text-center">
-                  <div className="text-4xl mb-4">🚀</div>
-                  <p className="text-lg font-medium">Start Your AI Workflow</p>
-                  <p className="text-sm">Select input resources and Agents, then click execute to start generation</p>
-                </div>
+              <div className="flex items-center justify-center h-full">
+                <Empty
+                  image={<RocketOutlined style={{ fontSize: 64, color: '#d9d9d9' }} />}
+                  description={
+                    <div>
+                      <Text strong className="text-lg">Start Your AI Workflow</Text>
+                      <br />
+                      <Text type="secondary" className="text-sm">
+                        Select input resources and Agents, then click execute to start generation
+                      </Text>
+                    </div>
+                  }
+                />
               </div>
             ) : (
               <div className="space-y-6">
@@ -412,36 +454,40 @@ export default function Home() {
               </div>
             )}
           </div>
-        </div>
+        </Content>
 
         {/* Right Sidebar - Agents */}
-        <div className="w-80 bg-white border-l border-gray-200 flex flex-col">
+        <Sider width={320} className="bg-white border-l border-gray-200 flex flex-col" theme="light">
           <div className="p-4 border-b border-gray-200">
-            <h2 className="text-lg font-semibold text-gray-900">AI Agents</h2>
-            <p className="text-sm text-gray-600">Select appropriate Agents to process your content</p>
+            <Title level={4} className="mb-0 text-gray-900">AI Agents</Title>
+            <Text type="secondary" className="text-sm">
+              Select appropriate Agents to process your content
+            </Text>
           </div>
-          <div className="flex-1 overflow-y-auto p-4 space-y-3">
+          <div className="flex-1 overflow-y-auto p-4">
             {/* Built-in Agents */}
             <div className="mb-4">
-              <h3 className="text-sm font-medium text-gray-700 mb-2">Built-in Agents</h3>
-              {mockAgents.map(agent => (
-                <div key={agent.id} className="mb-2">
+              <Text strong className="text-sm text-gray-700 mb-2 block">Built-in Agents</Text>
+              <div className="space-y-2">
+                {mockAgents.map(agent => (
                   <AgentCard
+                    key={agent.id}
                     agent={agent}
                     onSelect={handleAgentSelect}
                     disabled={isExecuting}
                   />
-                </div>
-              ))}
+                ))}
+              </div>
             </div>
 
             {/* Custom Agents */}
             {customAgents.length > 0 && (
               <div>
-                <h3 className="text-sm font-medium text-gray-700 mb-2">Custom Agents</h3>
-                {customAgents.map(agent => (
-                  <div key={agent.id} className="mb-2">
+                <Text strong className="text-sm text-gray-700 mb-2 block">Custom Agents</Text>
+                <div className="space-y-2">
+                  {customAgents.map(agent => (
                     <AgentCard
+                      key={agent.id}
                       agent={{
                         id: agent.id,
                         name: agent.name,
@@ -453,13 +499,13 @@ export default function Home() {
                       onSelect={handleAgentSelect}
                       disabled={isExecuting}
                     />
-                  </div>
-                ))}
+                  ))}
+                </div>
               </div>
             )}
           </div>
-        </div>
-      </div>
-    </div>
+        </Sider>
+      </Layout>
+    </Layout>
   );
 }

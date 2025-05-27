@@ -1,4 +1,5 @@
 import { Agent } from '@/types';
+import { Card, Tag, Avatar } from 'antd';
 
 interface AgentCardProps {
   agent: Agent;
@@ -16,30 +17,45 @@ const getCategoryLabel = (category: string) => {
   }
 };
 
+const getCategoryColor = (category: string) => {
+  switch (category) {
+    case 'analysis': return 'blue';
+    case 'validation': return 'green';
+    case 'generation': return 'purple';
+    case 'optimization': return 'orange';
+    default: return 'default';
+  }
+};
+
 export default function AgentCard({ agent, onSelect, disabled = false }: AgentCardProps) {
   return (
-    <div
-      className={`p-4 rounded-lg border-2 cursor-pointer transition-all duration-200 ${
-        disabled 
-          ? 'border-gray-200 bg-gray-50 cursor-not-allowed opacity-50'
-          : 'border-gray-200 bg-white hover:border-gray-300 hover:shadow-md'
-      }`}
+    <Card
+      hoverable={!disabled}
+      className={`mb-2 ${disabled ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
       onClick={() => !disabled && onSelect(agent)}
+      size="small"
     >
       <div className="flex items-start gap-3">
-        <div className={`w-10 h-10 rounded-lg ${agent.color} flex items-center justify-center text-white text-lg`}>
+        <Avatar 
+          className={agent.color}
+          size="large"
+          style={{ 
+            backgroundColor: agent.color.includes('bg-') ? undefined : agent.color,
+            color: 'white'
+          }}
+        >
           {agent.icon}
-        </div>
+        </Avatar>
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 mb-1">
-            <h3 className="font-medium text-gray-900">{agent.name}</h3>
-            <span className="px-2 py-1 text-xs rounded-full bg-gray-100 text-gray-600">
+            <h3 className="font-medium text-gray-900 text-sm">{agent.name}</h3>
+            <Tag color={getCategoryColor(agent.category)}>
               {getCategoryLabel(agent.category)}
-            </span>
+            </Tag>
           </div>
-          <p className="text-sm text-gray-600">{agent.description}</p>
+          <p className="text-xs text-gray-600">{agent.description}</p>
         </div>
       </div>
-    </div>
+    </Card>
   );
 } 

@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { ConfirmModal, FormModal } from '../../components/Modal';
+import { notification } from 'antd';
 
 interface CustomAgent {
   id: string;
@@ -118,14 +119,27 @@ export default function AgentsPage() {
 
       if (response.ok) {
         await fetchAgents();
+        notification.success({
+          message: editingAgent ? 'Agent 更新成功' : 'Agent 创建成功',
+          description: editingAgent ? 'Agent 已成功更新' : '新的 Agent 已成功创建',
+          placement: 'topRight',
+        });
         resetForm();
       } else {
         const error = await response.json();
-        alert(`Error: ${error.error}`);
+        notification.error({
+          message: '操作失败',
+          description: error.error,
+          placement: 'topRight',
+        });
       }
     } catch (error) {
       console.error('Error saving agent:', error);
-      alert('Failed to save agent');
+      notification.error({
+        message: '操作失败',
+        description: 'Failed to save agent',
+        placement: 'topRight',
+      });
     } finally {
       setSubmitting(false);
     }
@@ -163,14 +177,26 @@ export default function AgentsPage() {
 
       if (response.ok) {
         await fetchAgents();
-        alert('Agent删除成功！');
+        notification.success({
+          message: '删除成功',
+          description: 'Agent 删除成功！',
+          placement: 'topRight',
+        });
       } else {
         const error = await response.json();
-        alert(`Error: ${error.error}`);
+        notification.error({
+          message: '删除失败',
+          description: error.error,
+          placement: 'topRight',
+        });
       }
     } catch (error) {
       console.error('Error deleting agent:', error);
-      alert('Failed to delete agent');
+      notification.error({
+        message: '删除失败',
+        description: 'Failed to delete agent',
+        placement: 'topRight',
+      });
     } finally {
       setDeleting(false);
       setShowDeleteModal(false);

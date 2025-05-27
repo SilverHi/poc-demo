@@ -4,6 +4,33 @@ import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { StoredResource } from '../../../lib/database';
 import { ConfirmModal, FormModal } from '../../components/Modal';
+import { 
+  notification, 
+  Layout, 
+  Typography, 
+  Button, 
+  Input, 
+  Card, 
+  Space, 
+  Tag, 
+  Empty, 
+  Spin,
+  Row,
+  Col,
+  Descriptions
+} from 'antd';
+import { 
+  UploadOutlined, 
+  HomeOutlined, 
+  SearchOutlined, 
+  DeleteOutlined,
+  FileTextOutlined,
+  EditOutlined,
+  FileOutlined
+} from '@ant-design/icons';
+
+const { Header, Content } = Layout;
+const { Title, Text, Paragraph } = Typography;
 
 export default function ResourcesPage() {
   const router = useRouter();
@@ -59,7 +86,11 @@ export default function ResourcesPage() {
 
   const handleFileUpload = async () => {
     if (!selectedFile || !uploadTitle.trim()) {
-      alert('请选择文件并输入标题');
+      notification.warning({
+        message: '请检查输入',
+        description: '请选择文件并输入标题',
+        placement: 'topRight',
+      });
       return;
     }
 
@@ -76,7 +107,12 @@ export default function ResourcesPage() {
       });
 
       if (response.ok) {
-        alert('文件上传成功！');
+        const result = await response.json();
+        notification.success({
+          message: '上传成功',
+          description: result.message || '文件上传成功！',
+          placement: 'topRight',
+        });
         setShowUploadModal(false);
         setUploadTitle('');
         setUploadDescription('');
@@ -84,11 +120,19 @@ export default function ResourcesPage() {
         fetchResources(); // Refresh the list
       } else {
         const error = await response.json();
-        alert(`上传失败: ${error.error}`);
+        notification.error({
+          message: '上传失败',
+          description: error.error,
+          placement: 'topRight',
+        });
       }
     } catch (error) {
       console.error('Upload error:', error);
-      alert('上传失败，请重试');
+      notification.error({
+        message: '上传失败',
+        description: '上传失败，请重试',
+        placement: 'topRight',
+      });
     } finally {
       setUploading(false);
     }
@@ -118,16 +162,28 @@ export default function ResourcesPage() {
       if (response.ok) {
         const result = await response.json();
         console.log('Delete result:', result);
-        alert('资源删除成功！');
+        notification.success({
+          message: '删除成功',
+          description: '资源删除成功！',
+          placement: 'topRight',
+        });
         fetchResources(); // Refresh the list
       } else {
         const error = await response.json();
         console.error('Delete failed:', error);
-        alert(`删除失败: ${error.error || '未知错误'}`);
+        notification.error({
+          message: '删除失败',
+          description: error.error || '未知错误',
+          placement: 'topRight',
+        });
       }
     } catch (error) {
       console.error('Delete error:', error);
-      alert('删除失败，请检查网络连接后重试');
+      notification.error({
+        message: '删除失败',
+        description: '删除失败，请检查网络连接后重试',
+        placement: 'topRight',
+      });
     } finally {
       setDeleting(false);
       setShowDeleteModal(false);
@@ -152,13 +208,13 @@ export default function ResourcesPage() {
   const getTypeIcon = (type: string) => {
     switch (type) {
       case 'pdf':
-        return '📄';
+        return <FileTextOutlined style={{ color: '#ff4d4f' }} />;
       case 'md':
-        return '📝';
+        return <EditOutlined style={{ color: '#52c41a' }} />;
       case 'text':
-        return '📰';
+        return <FileOutlined style={{ color: '#1890ff' }} />;
       default:
-        return '📁';
+        return <FileOutlined style={{ color: '#d9d9d9' }} />;
     }
   };
 
@@ -176,131 +232,129 @@ export default function ResourcesPage() {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <Layout className="min-h-screen">
       {/* Header */}
-      <header className="bg-white border-b border-gray-200 px-6 py-4">
-        <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-2xl font-bold text-gray-900">资源管理</h1>
-            <p className="text-sm text-gray-600">管理和上传您的文档资源</p>
-          </div>
-          <div className="flex gap-3">
-            <button
-              onClick={() => setShowUploadModal(true)}
-              className="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 transition-colors"
-            >
-              📤 上传文件
-            </button>
-            <button
-              onClick={() => router.push('/')}
-              className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
-            >
-              返回主页
-            </button>
-          </div>
+      <Header className="bg-white border-b border-gray-200 px-6 flex items-center justify-between">
+        <div>
+          <Title level={2} className="mb-0 text-gray-900">资源管理</Title>
+          <Text type="secondary" className="text-sm">
+            管理和上传您的文档资源
+          </Text>
         </div>
-      </header>
+        <Space>
+          <Button
+            type="primary"
+            icon={<UploadOutlined />}
+            onClick={() => setShowUploadModal(true)}
+          >
+            上传文件
+          </Button>
+          <Button
+            icon={<HomeOutlined />}
+            onClick={() => router.push('/')}
+          >
+            返回主页
+          </Button>
+        </Space>
+      </Header>
 
-      <div className="p-6">
+      <Content className="p-6">
         {/* Search Bar */}
         <div className="mb-6">
-          <div className="relative">
-            <input
-              type="text"
-              placeholder="搜索资源..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-            />
-            <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-              <span className="text-gray-400">🔍</span>
-            </div>
-          </div>
+          <Input
+            placeholder="搜索资源..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            prefix={<SearchOutlined />}
+            size="large"
+            allowClear
+          />
         </div>
 
         {/* Resources Grid */}
         {loading ? (
           <div className="flex items-center justify-center h-64">
-            <div className="text-center">
-              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-4"></div>
-              <p className="text-gray-500">加载中...</p>
-            </div>
+            <Spin size="large" />
           </div>
         ) : filteredResources.length === 0 ? (
-          <div className="flex items-center justify-center h-64">
-            <div className="text-center">
-              <div className="text-4xl mb-4">📚</div>
-              <p className="text-lg font-medium text-gray-900">
-                {searchQuery ? '未找到匹配的资源' : '暂无资源'}
-              </p>
-              <p className="text-sm text-gray-500">
-                {searchQuery ? '试试其他搜索词' : '点击上传文件按钮开始添加资源'}
-              </p>
-            </div>
-          </div>
-        ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {filteredResources.map((resource) => (
-              <div key={resource.id} className="bg-white rounded-lg border border-gray-200 p-6 hover:shadow-lg transition-shadow">
-                <div className="flex items-start justify-between mb-4">
-                  <div className="flex items-center gap-3">
-                    <div className="text-2xl">
-                      {getTypeIcon(resource.type)}
-                    </div>
-                    <div>
-                      <h3 className="font-semibold text-gray-900 line-clamp-1">
-                        {resource.title}
-                      </h3>
-                      <p className="text-sm text-gray-500">
-                        {getTypeLabel(resource.type)}
-                      </p>
-                    </div>
-                  </div>
-                  <button
-                    onClick={(e) => {
-                      e.preventDefault();
-                      e.stopPropagation();
-                      handleDeleteClick(resource.id);
-                    }}
-                    className="p-2 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors"
-                    title="删除资源"
-                  >
-                    🗑️
-                  </button>
-                </div>
-
-                {resource.description && (
-                  <p className="text-sm text-gray-600 mb-4 line-clamp-2">
-                    {resource.description}
-                  </p>
-                )}
-
-                <div className="text-xs text-gray-500 space-y-1">
-                  <div className="flex justify-between">
-                    <span>文件名:</span>
-                    <span className="font-mono">{resource.fileName}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span>大小:</span>
-                    <span>{formatFileSize(resource.fileSize)}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span>创建时间:</span>
-                    <span>{new Date(resource.createdAt).toLocaleDateString()}</span>
-                  </div>
-                </div>
-
-                <div className="mt-4 pt-4 border-t border-gray-100">
-                  <p className="text-xs text-gray-500 line-clamp-3">
-                    {resource.parsedContent.substring(0, 150)}
-                    {resource.parsedContent.length > 150 && '...'}
-                  </p>
-                </div>
+          <Empty
+            image={Empty.PRESENTED_IMAGE_SIMPLE}
+            description={
+              <div>
+                <Text strong>
+                  {searchQuery ? '未找到匹配的资源' : '暂无资源'}
+                </Text>
+                <br />
+                <Text type="secondary">
+                  {searchQuery ? '试试其他搜索词' : '点击上传文件按钮开始添加资源'}
+                </Text>
               </div>
+            }
+          />
+        ) : (
+          <Row gutter={[16, 16]}>
+            {filteredResources.map((resource) => (
+              <Col xs={24} md={12} lg={8} key={resource.id}>
+                <Card
+                  hoverable
+                  actions={[
+                    <Button
+                      key="delete"
+                      type="text"
+                      danger
+                      icon={<DeleteOutlined />}
+                      onClick={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        handleDeleteClick(resource.id);
+                      }}
+                    >
+                      删除
+                    </Button>
+                  ]}
+                >
+                  <Card.Meta
+                    avatar={<div className="text-2xl">{getTypeIcon(resource.type)}</div>}
+                    title={
+                      <div className="flex items-center justify-between">
+                        <Text strong className="truncate">{resource.title}</Text>
+                        <Tag color="blue">{getTypeLabel(resource.type)}</Tag>
+                      </div>
+                    }
+                    description={
+                      resource.description && (
+                        <Paragraph ellipsis={{ rows: 2 }} className="mb-2">
+                          {resource.description}
+                        </Paragraph>
+                      )
+                    }
+                  />
+                  
+                  <div className="mt-4">
+                    <Descriptions size="small" column={1}>
+                      <Descriptions.Item label="文件名">
+                        <Text code className="text-xs">{resource.fileName}</Text>
+                      </Descriptions.Item>
+                      <Descriptions.Item label="大小">
+                        {formatFileSize(resource.fileSize)}
+                      </Descriptions.Item>
+                      <Descriptions.Item label="创建时间">
+                        {new Date(resource.createdAt).toLocaleDateString()}
+                      </Descriptions.Item>
+                    </Descriptions>
+                    
+                    <div className="mt-3 pt-3 border-t border-gray-100">
+                      <Paragraph ellipsis={{ rows: 3 }} className="text-xs text-gray-500 mb-0">
+                        {resource.parsedContent}
+                      </Paragraph>
+                    </div>
+                  </div>
+                </Card>
+              </Col>
             ))}
-          </div>
-        )}
-      </div>
+          </Row>
+                  )}
+        </Content>
 
       {/* Upload Modal */}
       <FormModal
@@ -371,7 +425,7 @@ export default function ResourcesPage() {
         cancelText="取消"
         confirmButtonClass="bg-red-600 hover:bg-red-700"
         isLoading={deleting}
-      />
-    </div>
-  );
-} 
+              />
+      </Layout>
+    );
+  } 
