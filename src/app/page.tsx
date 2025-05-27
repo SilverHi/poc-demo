@@ -6,13 +6,32 @@ import { mockInputResources, mockAgents, executeAgent } from '@/data/mockData';
 import InputResourceCard from '@/components/InputResourceCard';
 import AgentCard from '@/components/AgentCard';
 import WorkflowStepComponent from '@/components/WorkflowStep';
+import { useRouter } from 'next/navigation';
+
+interface CustomAgent {
+  id: string;
+  name: string;
+  description: string;
+  icon: string;
+  category: string;
+  color: string;
+  systemPrompt: string;
+  model: string;
+  temperature: number;
+  maxTokens: number;
+  createdAt: string;
+  updatedAt: string;
+}
 
 export default function Home() {
+  const router = useRouter();
   const [selectedResources, setSelectedResources] = useState<InputResource[]>([]);
   const [userInput, setUserInput] = useState('');
   const [workflowSteps, setWorkflowSteps] = useState<WorkflowStep[]>([]);
   const [selectedAgent, setSelectedAgent] = useState<Agent | null>(null);
   const [isExecuting, setIsExecuting] = useState(false);
+  const [customAgents, setCustomAgents] = useState<CustomAgent[]>([]);
+  const [allAgents, setAllAgents] = useState<Agent[]>([]);
   
   const workflowRef = useRef<HTMLDivElement>(null);
 
@@ -22,6 +41,37 @@ export default function Home() {
       workflowRef.current.scrollTop = workflowRef.current.scrollHeight;
     }
   }, [workflowSteps]);
+
+  // Fetch custom agents on component mount
+  useEffect(() => {
+    fetchCustomAgents();
+  }, []);
+
+  // Update all agents when custom agents change
+  useEffect(() => {
+    const convertedCustomAgents = customAgents.map(agent => ({
+      id: agent.id,
+      name: agent.name,
+      description: agent.description,
+      icon: agent.icon,
+      category: agent.category as 'analysis' | 'validation' | 'generation' | 'optimization',
+      color: agent.color,
+    }));
+    
+    setAllAgents([...mockAgents, ...convertedCustomAgents]);
+  }, [customAgents]);
+
+  const fetchCustomAgents = async () => {
+    try {
+      const response = await fetch('/api/agents');
+      if (response.ok) {
+        const data = await response.json();
+        setCustomAgents(data);
+      }
+    } catch (error) {
+      console.error('Error fetching custom agents:', error);
+    }
+  };
 
   const handleResourceSelect = (resource: InputResource) => {
     setSelectedResources(prev => {
@@ -50,6 +100,28 @@ export default function Home() {
 
   const canExecute = () => {
     return selectedAgent && (userInput.trim() || selectedResources.length > 0) && !isExecuting;
+  };
+
+  const executeCustomAgent = async (agentId: string, input: string): Promise<{ output: string; logs: string[] }> => {
+    try {
+      const response = await fetch(`/api/agents/${agentId}/execute`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ input }),
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || 'Failed to execute agent');
+      }
+
+      return await response.json();
+    } catch (error) {
+      console.error('Error executing custom agent:', error);
+      throw error;
+    }
   };
 
   const handleExecute = async () => {
@@ -87,8 +159,18 @@ export default function Home() {
         }));
       }, 800);
 
-      // Execute agent
-      const result = await executeAgent(selectedAgent.id, inputContent);
+      let result;
+      
+      // Check if it's a custom agent or mock agent
+      const isCustomAgent = customAgents.some(agent => agent.id === selectedAgent.id);
+      
+      if (isCustomAgent) {
+        // Execute custom agent via API
+        result = await executeCustomAgent(selectedAgent.id, inputContent);
+      } else {
+        // Execute mock agent
+        result = await executeAgent(selectedAgent.id, inputContent);
+      }
       
       clearInterval(logInterval);
 
@@ -111,7 +193,11 @@ export default function Home() {
     } catch (error) {
       setWorkflowSteps(prev => prev.map(step => {
         if (step.id === newStep.id) {
-          return { ...step, status: 'error' as const };
+          return { 
+            ...step, 
+            status: 'error' as const,
+            output: `Error: ${error instanceof Error ? error.message : 'Unknown error'}`
+          };
         }
         return step;
       }));
@@ -136,12 +222,20 @@ export default function Home() {
             <h1 className="text-2xl font-bold text-gray-900">User Story Generator</h1>
             <p className="text-sm text-gray-600">AI Agent-based Intelligent Requirements Analysis and Story Generation Platform</p>
           </div>
-          <button
-            onClick={clearWorkflow}
-            className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
-          >
-            Clear Workflow
-          </button>
+          <div className="flex gap-3">
+            <button
+              onClick={() => router.push('/agents')}
+              className="px-4 py-2 text-sm font-medium text-white bg-green-600 rounded-lg hover:bg-green-700 transition-colors"
+            >
+              🛠️ Agent Builder
+            </button>
+            <button
+              onClick={clearWorkflow}
+              className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
+            >
+              Clear Workflow
+            </button>
+          </div>
         </div>
       </header>
 
@@ -263,14 +357,42 @@ export default function Home() {
             <p className="text-sm text-gray-600">Select appropriate Agents to process your content</p>
           </div>
           <div className="flex-1 overflow-y-auto p-4 space-y-3">
-            {mockAgents.map(agent => (
-              <AgentCard
-                key={agent.id}
-                agent={agent}
-                onSelect={handleAgentSelect}
-                disabled={isExecuting}
-              />
-            ))}
+            {/* Built-in Agents */}
+            <div className="mb-4">
+              <h3 className="text-sm font-medium text-gray-700 mb-2">Built-in Agents</h3>
+              {mockAgents.map(agent => (
+                <div key={agent.id} className="mb-2">
+                  <AgentCard
+                    agent={agent}
+                    onSelect={handleAgentSelect}
+                    disabled={isExecuting}
+                  />
+                </div>
+              ))}
+            </div>
+
+            {/* Custom Agents */}
+            {customAgents.length > 0 && (
+              <div>
+                <h3 className="text-sm font-medium text-gray-700 mb-2">Custom Agents</h3>
+                {customAgents.map(agent => (
+                  <div key={agent.id} className="mb-2">
+                    <AgentCard
+                      agent={{
+                        id: agent.id,
+                        name: agent.name,
+                        description: agent.description,
+                        icon: agent.icon,
+                        category: agent.category as 'analysis' | 'validation' | 'generation' | 'optimization',
+                        color: agent.color,
+                      }}
+                      onSelect={handleAgentSelect}
+                      disabled={isExecuting}
+                    />
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         </div>
       </div>
