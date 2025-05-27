@@ -2,7 +2,8 @@
 
 import { useState, useRef, useEffect } from 'react';
 import { InputResource, Agent, WorkflowStep } from '@/types';
-import { mockInputResources, mockAgents, executeAgent } from '@/data/mockData';
+import { mockAgents, executeAgent } from '@/data/mockData';
+import { StoredResource } from '../../lib/database';
 import InputResourceCard from '@/components/InputResourceCard';
 import AgentCard from '@/components/AgentCard';
 import WorkflowStepComponent from '@/components/WorkflowStep';
@@ -31,7 +32,9 @@ export default function Home() {
   const [selectedAgent, setSelectedAgent] = useState<Agent | null>(null);
   const [isExecuting, setIsExecuting] = useState(false);
   const [customAgents, setCustomAgents] = useState<CustomAgent[]>([]);
-  const [allAgents, setAllAgents] = useState<Agent[]>([]);
+  const [storedResources, setStoredResources] = useState<StoredResource[]>([]);
+  const [resourceSearchQuery, setResourceSearchQuery] = useState('');
+  const [filteredStoredResources, setFilteredStoredResources] = useState<StoredResource[]>([]);
   
   const workflowRef = useRef<HTMLDivElement>(null);
 
@@ -42,24 +45,27 @@ export default function Home() {
     }
   }, [workflowSteps]);
 
-  // Fetch custom agents on component mount
+  // Fetch custom agents and resources on component mount
   useEffect(() => {
     fetchCustomAgents();
+    fetchStoredResources();
   }, []);
 
-  // Update all agents when custom agents change
+  // Filter resources based on search query
   useEffect(() => {
-    const convertedCustomAgents = customAgents.map(agent => ({
-      id: agent.id,
-      name: agent.name,
-      description: agent.description,
-      icon: agent.icon,
-      category: agent.category as 'analysis' | 'validation' | 'generation' | 'optimization',
-      color: agent.color,
-    }));
-    
-    setAllAgents([...mockAgents, ...convertedCustomAgents]);
-  }, [customAgents]);
+    if (resourceSearchQuery.trim()) {
+      const filtered = storedResources.filter(resource =>
+        resource.title.toLowerCase().includes(resourceSearchQuery.toLowerCase()) ||
+        resource.description.toLowerCase().includes(resourceSearchQuery.toLowerCase()) ||
+        resource.parsedContent.toLowerCase().includes(resourceSearchQuery.toLowerCase())
+      );
+      setFilteredStoredResources(filtered);
+    } else {
+      setFilteredStoredResources(storedResources);
+    }
+  }, [resourceSearchQuery, storedResources]);
+
+
 
   const fetchCustomAgents = async () => {
     try {
@@ -70,6 +76,18 @@ export default function Home() {
       }
     } catch (error) {
       console.error('Error fetching custom agents:', error);
+    }
+  };
+
+  const fetchStoredResources = async () => {
+    try {
+      const response = await fetch('/api/resources');
+      if (response.ok) {
+        const data = await response.json();
+        setStoredResources(data);
+      }
+    } catch (error) {
+      console.error('Error fetching stored resources:', error);
     }
   };
 
@@ -243,18 +261,64 @@ export default function Home() {
         {/* Left Sidebar - Input Resources */}
         <div className="w-80 bg-white border-r border-gray-200 flex flex-col">
           <div className="p-4 border-b border-gray-200">
-            <h2 className="text-lg font-semibold text-gray-900">Input Resources</h2>
+            <div className="flex items-center justify-between mb-2">
+              <h2 className="text-lg font-semibold text-gray-900">Input Resources</h2>
+              <button
+                onClick={() => router.push('/resources')}
+                className="px-3 py-1 text-xs font-medium text-white bg-blue-600 rounded hover:bg-blue-700 transition-colors"
+              >
+                📤 管理
+              </button>
+            </div>
             <p className="text-sm text-gray-600">Select relevant documents and templates as reference</p>
           </div>
-          <div className="flex-1 overflow-y-auto p-4 space-y-3">
-            {mockInputResources.map(resource => (
-              <InputResourceCard
-                key={resource.id}
-                resource={resource}
-                isSelected={selectedResources.some(r => r.id === resource.id)}
-                onSelect={handleResourceSelect}
+          
+          {/* Search Box */}
+          <div className="p-4 border-b border-gray-200">
+            <div className="relative">
+              <input
+                type="text"
+                placeholder="搜索资源..."
+                value={resourceSearchQuery}
+                onChange={(e) => setResourceSearchQuery(e.target.value)}
+                className="w-full pl-8 pr-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
               />
-            ))}
+              <div className="absolute inset-y-0 left-0 pl-2 flex items-center pointer-events-none">
+                <span className="text-gray-400 text-sm">🔍</span>
+              </div>
+            </div>
+          </div>
+
+          <div className="flex-1 overflow-y-auto p-4 space-y-3">
+            {filteredStoredResources.length === 0 ? (
+              <div className="text-center py-8">
+                <div className="text-2xl mb-2">📚</div>
+                <p className="text-sm text-gray-500">
+                  {resourceSearchQuery ? '未找到匹配的资源' : '暂无资源'}
+                </p>
+                <p className="text-xs text-gray-400 mt-1">
+                  {resourceSearchQuery ? '试试其他搜索词' : '点击管理按钮上传文档'}
+                </p>
+              </div>
+            ) : (
+              filteredStoredResources.map(resource => {
+                const inputResource: InputResource = {
+                  id: resource.id,
+                  title: resource.title,
+                  type: resource.type === 'pdf' ? 'pdf' : resource.type === 'md' ? 'md' : 'text',
+                  content: resource.parsedContent,
+                  description: resource.description
+                };
+                return (
+                  <InputResourceCard
+                    key={resource.id}
+                    resource={inputResource}
+                    isSelected={selectedResources.some(r => r.id === resource.id)}
+                    onSelect={handleResourceSelect}
+                  />
+                );
+              })
+            )}
           </div>
         </div>
 

@@ -13,11 +13,12 @@ async function ensureDbInitialized() {
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     await ensureDbInitialized();
-    const agent = await dbManager.getAgentById(params.id);
+    const { id } = await params;
+    const agent = await dbManager.getAgentById(id);
     
     if (!agent) {
       return NextResponse.json(
@@ -38,14 +39,15 @@ export async function GET(
 
 export async function PUT(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     await ensureDbInitialized();
     const body = await request.json();
+    const { id } = await params;
     
     // Check if agent exists
-    const existingAgent = await dbManager.getAgentById(params.id);
+    const existingAgent = await dbManager.getAgentById(id);
     if (!existingAgent) {
       return NextResponse.json(
         { error: 'Agent not found' },
@@ -53,8 +55,8 @@ export async function PUT(
       );
     }
 
-    await dbManager.updateAgent(params.id, body);
-    const updatedAgent = await dbManager.getAgentById(params.id);
+    await dbManager.updateAgent(id, body);
+    const updatedAgent = await dbManager.getAgentById(id);
     
     return NextResponse.json(updatedAgent);
   } catch (error) {
@@ -68,13 +70,14 @@ export async function PUT(
 
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     await ensureDbInitialized();
+    const { id } = await params;
     
     // Check if agent exists
-    const existingAgent = await dbManager.getAgentById(params.id);
+    const existingAgent = await dbManager.getAgentById(id);
     if (!existingAgent) {
       return NextResponse.json(
         { error: 'Agent not found' },
@@ -82,7 +85,7 @@ export async function DELETE(
       );
     }
 
-    await dbManager.deleteAgent(params.id);
+    await dbManager.deleteAgent(id);
     
     return NextResponse.json({ message: 'Agent deleted successfully' });
   } catch (error) {

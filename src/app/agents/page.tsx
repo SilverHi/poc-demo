@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
+import { ConfirmModal, FormModal } from '../../components/Modal';
 
 interface CustomAgent {
   id: string;
@@ -48,6 +49,10 @@ export default function AgentsPage() {
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
   const [editingAgent, setEditingAgent] = useState<CustomAgent | null>(null);
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [agentToDelete, setAgentToDelete] = useState<string | null>(null);
+  const [deleting, setDeleting] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
   const [formData, setFormData] = useState({
     name: '',
     description: '',
@@ -97,10 +102,9 @@ export default function AgentsPage() {
     }
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    
+  const handleSubmit = async () => {
     try {
+      setSubmitting(true);
       const url = editingAgent ? `/api/agents/${editingAgent.id}` : '/api/agents';
       const method = editingAgent ? 'PUT' : 'POST';
       
@@ -122,6 +126,8 @@ export default function AgentsPage() {
     } catch (error) {
       console.error('Error saving agent:', error);
       alert('Failed to save agent');
+    } finally {
+      setSubmitting(false);
     }
   };
 
@@ -141,16 +147,23 @@ export default function AgentsPage() {
     setShowForm(true);
   };
 
-  const handleDelete = async (id: string) => {
-    if (!confirm('Are you sure you want to delete this agent?')) return;
+  const handleDeleteClick = (id: string) => {
+    setAgentToDelete(id);
+    setShowDeleteModal(true);
+  };
+
+  const handleConfirmDelete = async () => {
+    if (!agentToDelete) return;
 
     try {
-      const response = await fetch(`/api/agents/${id}`, {
+      setDeleting(true);
+      const response = await fetch(`/api/agents/${agentToDelete}`, {
         method: 'DELETE',
       });
 
       if (response.ok) {
         await fetchAgents();
+        alert('Agent删除成功！');
       } else {
         const error = await response.json();
         alert(`Error: ${error.error}`);
@@ -158,7 +171,16 @@ export default function AgentsPage() {
     } catch (error) {
       console.error('Error deleting agent:', error);
       alert('Failed to delete agent');
+    } finally {
+      setDeleting(false);
+      setShowDeleteModal(false);
+      setAgentToDelete(null);
     }
+  };
+
+  const handleCancelDelete = () => {
+    setShowDeleteModal(false);
+    setAgentToDelete(null);
   };
 
   const resetForm = () => {
@@ -236,14 +258,17 @@ export default function AgentsPage() {
 
       <div className="max-w-7xl mx-auto px-6 py-8">
         {/* Agent Form Modal */}
-        {showForm && (
-          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-            <div className="bg-white rounded-lg p-6 w-full max-w-2xl max-h-[90vh] overflow-y-auto">
-              <h2 className="text-xl font-bold mb-4">
-                {editingAgent ? 'Edit Agent' : 'Create New Agent'}
-              </h2>
-              
-              <form onSubmit={handleSubmit} className="space-y-4">
+        <FormModal
+          isOpen={showForm}
+          onClose={resetForm}
+          onSubmit={handleSubmit}
+          title={editingAgent ? 'Edit Agent' : 'Create New Agent'}
+          submitText={editingAgent ? 'Update Agent' : 'Create Agent'}
+          cancelText="Cancel"
+          isSubmitting={submitting}
+          canSubmit={!!(formData.name && formData.description && formData.systemPrompt)}
+          size="lg"
+        >
                 <div className="grid grid-cols-2 gap-4">
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -374,25 +399,20 @@ export default function AgentsPage() {
                   </div>
                 </div>
 
-                <div className="flex justify-end gap-3 pt-4">
-                  <button
-                    type="button"
-                    onClick={resetForm}
-                    className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50"
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    type="submit"
-                    className="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700"
-                  >
-                    {editingAgent ? 'Update Agent' : 'Create Agent'}
-                  </button>
-                </div>
-              </form>
-            </div>
-          </div>
-        )}
+        </FormModal>
+
+        {/* Delete Confirmation Modal */}
+        <ConfirmModal
+          isOpen={showDeleteModal}
+          onClose={handleCancelDelete}
+          onConfirm={handleConfirmDelete}
+          title="确认删除"
+          message="确定要删除这个Agent吗？此操作无法撤销。"
+          confirmText="确认删除"
+          cancelText="取消"
+          confirmButtonClass="bg-red-600 hover:bg-red-700"
+          isLoading={deleting}
+        />
 
         {/* Agents Grid */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -418,7 +438,7 @@ export default function AgentsPage() {
                     ✏️
                   </button>
                   <button
-                    onClick={() => handleDelete(agent.id)}
+                    onClick={() => handleDeleteClick(agent.id)}
                     className="p-1 text-gray-400 hover:text-red-600"
                   >
                     🗑️

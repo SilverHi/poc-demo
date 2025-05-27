@@ -1,7 +1,7 @@
 export interface InputResource {
   id: string;
   title: string;
-  type: 'text' | 'document' | 'template' | 'reference';
+  type: 'text' | 'document' | 'template' | 'reference' | 'pdf' | 'md';
   content: string;
   description?: string;
 }

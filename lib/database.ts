@@ -1,5 +1,4 @@
 import Database from 'sqlite3';
-import { promisify } from 'util';
 
 export interface CustomAgent {
   id: string;
@@ -12,6 +11,19 @@ export interface CustomAgent {
   model: string;
   temperature: number;
   maxTokens: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface StoredResource {
+  id: string;
+  title: string;
+  description: string;
+  type: 'pdf' | 'md' | 'text';
+  fileSize: number;
+  fileName: string;
+  originalContent: string; // 原始文件内容（Base64编码）
+  parsedContent: string;   // 解析后的纯文本内容
   createdAt: string;
   updatedAt: string;
 }
@@ -51,6 +63,21 @@ class DatabaseManager {
       )
     `;
 
+    const createResourcesTable = `
+      CREATE TABLE IF NOT EXISTS resources (
+        id TEXT PRIMARY KEY,
+        title TEXT NOT NULL,
+        description TEXT,
+        type TEXT NOT NULL CHECK (type IN ('pdf', 'md', 'text')),
+        file_size INTEGER NOT NULL,
+        file_name TEXT NOT NULL,
+        original_content TEXT NOT NULL,
+        parsed_content TEXT NOT NULL,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+      )
+    `;
+
     return new Promise<void>((resolve, reject) => {
       if (!this.db) {
         reject(new Error('Database not initialized'));
@@ -63,7 +90,17 @@ class DatabaseManager {
           reject(err);
         } else {
           console.log('Agents table created successfully');
-          resolve();
+          
+          // Create resources table
+          this.db!.run(createResourcesTable, (err) => {
+            if (err) {
+              console.error('Error creating resources table:', err);
+              reject(err);
+            } else {
+              console.log('Resources table created successfully');
+              resolve();
+            }
+          });
         }
       });
     });
@@ -83,7 +120,7 @@ class DatabaseManager {
           created_at as createdAt, updated_at as updatedAt
          FROM agents 
          ORDER BY created_at DESC`,
-        (err, rows: any[]) => {
+        (err, rows: unknown[]) => {
           if (err) {
             reject(err);
           } else {
@@ -109,7 +146,7 @@ class DatabaseManager {
          FROM agents 
          WHERE id = ?`,
         [id],
-        (err, row: any) => {
+        (err, row: unknown) => {
           if (err) {
             reject(err);
           } else {
@@ -158,8 +195,8 @@ class DatabaseManager {
   }
 
   async updateAgent(id: string, agent: Partial<Omit<CustomAgent, 'id' | 'createdAt' | 'updatedAt'>>): Promise<void> {
-    const fields = [];
-    const values = [];
+    const fields: string[] = [];
+    const values: unknown[] = [];
 
     for (const [key, value] of Object.entries(agent)) {
       if (value !== undefined) {
@@ -212,6 +249,180 @@ class DatabaseManager {
           resolve();
         }
       });
+    });
+  }
+
+  // Resource management methods
+  async getAllResources(): Promise<StoredResource[]> {
+    return new Promise((resolve, reject) => {
+      if (!this.db) {
+        reject(new Error('Database not initialized'));
+        return;
+      }
+
+      this.db.all(
+        `SELECT 
+          id, title, description, type, file_size as fileSize, file_name as fileName,
+          original_content as originalContent, parsed_content as parsedContent,
+          created_at as createdAt, updated_at as updatedAt
+         FROM resources 
+         ORDER BY created_at DESC`,
+        (err, rows: unknown[]) => {
+          if (err) {
+            reject(err);
+          } else {
+            resolve(rows as StoredResource[]);
+          }
+        }
+      );
+    });
+  }
+
+  async getResourceById(id: string): Promise<StoredResource | null> {
+    return new Promise((resolve, reject) => {
+      if (!this.db) {
+        reject(new Error('Database not initialized'));
+        return;
+      }
+
+      this.db.get(
+        `SELECT 
+          id, title, description, type, file_size as fileSize, file_name as fileName,
+          original_content as originalContent, parsed_content as parsedContent,
+          created_at as createdAt, updated_at as updatedAt
+         FROM resources 
+         WHERE id = ?`,
+        [id],
+        (err, row: unknown) => {
+          if (err) {
+            reject(err);
+          } else {
+            resolve(row as StoredResource || null);
+          }
+        }
+      );
+    });
+  }
+
+  async createResource(resource: Omit<StoredResource, 'id' | 'createdAt' | 'updatedAt'>): Promise<string> {
+    const id = `resource_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    
+    return new Promise((resolve, reject) => {
+      if (!this.db) {
+        reject(new Error('Database not initialized'));
+        return;
+      }
+
+      this.db.run(
+        `INSERT INTO resources (
+          id, title, description, type, file_size, file_name,
+          original_content, parsed_content
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+        [
+          id,
+          resource.title,
+          resource.description,
+          resource.type,
+          resource.fileSize,
+          resource.fileName,
+          resource.originalContent,
+          resource.parsedContent
+        ],
+        function(err) {
+          if (err) {
+            reject(err);
+          } else {
+            resolve(id);
+          }
+        }
+      );
+    });
+  }
+
+  async updateResource(id: string, resource: Partial<Omit<StoredResource, 'id' | 'createdAt' | 'updatedAt'>>): Promise<void> {
+    const fields: string[] = [];
+    const values: unknown[] = [];
+
+    for (const [key, value] of Object.entries(resource)) {
+      if (value !== undefined) {
+        // Convert camelCase to snake_case for database
+        const dbKey = key === 'fileSize' ? 'file_size' : 
+                     key === 'fileName' ? 'file_name' :
+                     key === 'originalContent' ? 'original_content' :
+                     key === 'parsedContent' ? 'parsed_content' : key;
+        fields.push(`${dbKey} = ?`);
+        values.push(value);
+      }
+    }
+
+    if (fields.length === 0) {
+      return Promise.resolve();
+    }
+
+    fields.push('updated_at = CURRENT_TIMESTAMP');
+    values.push(id);
+
+    return new Promise((resolve, reject) => {
+      if (!this.db) {
+        reject(new Error('Database not initialized'));
+        return;
+      }
+
+      this.db.run(
+        `UPDATE resources SET ${fields.join(', ')} WHERE id = ?`,
+        values,
+        function(err) {
+          if (err) {
+            reject(err);
+          } else {
+            resolve();
+          }
+        }
+      );
+    });
+  }
+
+  async deleteResource(id: string): Promise<void> {
+    return new Promise((resolve, reject) => {
+      if (!this.db) {
+        reject(new Error('Database not initialized'));
+        return;
+      }
+
+      this.db.run('DELETE FROM resources WHERE id = ?', [id], function(err) {
+        if (err) {
+          reject(err);
+        } else {
+          resolve();
+        }
+      });
+    });
+  }
+
+  async searchResources(query: string): Promise<StoredResource[]> {
+    return new Promise((resolve, reject) => {
+      if (!this.db) {
+        reject(new Error('Database not initialized'));
+        return;
+      }
+
+      this.db.all(
+        `SELECT 
+          id, title, description, type, file_size as fileSize, file_name as fileName,
+          original_content as originalContent, parsed_content as parsedContent,
+          created_at as createdAt, updated_at as updatedAt
+         FROM resources 
+         WHERE title LIKE ? OR description LIKE ? OR parsed_content LIKE ?
+         ORDER BY created_at DESC`,
+        [`%${query}%`, `%${query}%`, `%${query}%`],
+        (err, rows: unknown[]) => {
+          if (err) {
+            reject(err);
+          } else {
+            resolve(rows as StoredResource[]);
+          }
+        }
+      );
     });
   }
 

@@ -14,12 +14,13 @@ async function ensureDbInitialized() {
 
 export async function POST(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     await ensureDbInitialized();
     const body = await request.json();
     const { input } = body;
+    const { id } = await params;
 
     if (!input) {
       return NextResponse.json(
@@ -29,7 +30,7 @@ export async function POST(
     }
 
     // Get agent configuration from database
-    const agent = await dbManager.getAgentById(params.id);
+    const agent = await dbManager.getAgentById(id);
     if (!agent) {
       return NextResponse.json(
         { error: 'Agent not found' },

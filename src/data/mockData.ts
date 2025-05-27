@@ -105,8 +105,9 @@ export const mockAgents: Agent[] = [
   }
 ];
 
-// Mock agent execution function
-export const executeAgent = async (agentId: string, input: string): Promise<{ output: string; logs: string[] }> => {
+// Mock agent execution function  
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+export const executeAgent = async (agentId: string, _input: string): Promise<{ output: string; logs: string[] }> => {
   // Simulate async processing
   await new Promise(resolve => setTimeout(resolve, 2000 + Math.random() * 3000));
   
