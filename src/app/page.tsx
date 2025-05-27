@@ -1,0 +1,279 @@
+'use client';
+
+import { useState, useRef, useEffect } from 'react';
+import { InputResource, Agent, WorkflowStep } from '@/types';
+import { mockInputResources, mockAgents, executeAgent } from '@/data/mockData';
+import InputResourceCard from '@/components/InputResourceCard';
+import AgentCard from '@/components/AgentCard';
+import WorkflowStepComponent from '@/components/WorkflowStep';
+
+export default function Home() {
+  const [selectedResources, setSelectedResources] = useState<InputResource[]>([]);
+  const [userInput, setUserInput] = useState('');
+  const [workflowSteps, setWorkflowSteps] = useState<WorkflowStep[]>([]);
+  const [selectedAgent, setSelectedAgent] = useState<Agent | null>(null);
+  const [isExecuting, setIsExecuting] = useState(false);
+  
+  const workflowRef = useRef<HTMLDivElement>(null);
+
+  // Scroll to the latest workflow step
+  useEffect(() => {
+    if (workflowRef.current && workflowSteps.length > 0) {
+      workflowRef.current.scrollTop = workflowRef.current.scrollHeight;
+    }
+  }, [workflowSteps]);
+
+  const handleResourceSelect = (resource: InputResource) => {
+    setSelectedResources(prev => {
+      const isSelected = prev.some(r => r.id === resource.id);
+      if (isSelected) {
+        return prev.filter(r => r.id !== resource.id);
+      } else {
+        return [...prev, resource];
+      }
+    });
+  };
+
+  const handleAgentSelect = (agent: Agent) => {
+    if (isExecuting) return;
+    setSelectedAgent(agent);
+  };
+
+  const getInputContent = () => {
+    let content = userInput;
+    if (selectedResources.length > 0) {
+      const resourceContent = selectedResources.map(r => `[${r.title}]: ${r.content}`).join('\n\n');
+      content = content ? `${content}\n\nReference Resources:\n${resourceContent}` : resourceContent;
+    }
+    return content;
+  };
+
+  const canExecute = () => {
+    return selectedAgent && (userInput.trim() || selectedResources.length > 0) && !isExecuting;
+  };
+
+  const handleExecute = async () => {
+    if (!canExecute() || !selectedAgent) return;
+
+    setIsExecuting(true);
+    const inputContent = getInputContent();
+    
+    // Create new workflow step
+    const newStep: WorkflowStep = {
+      id: Date.now().toString(),
+      agent: selectedAgent,
+      input: inputContent,
+      status: 'running',
+      logs: []
+    };
+
+    setWorkflowSteps(prev => [...prev, newStep]);
+    setSelectedAgent(null);
+
+    try {
+      // Simulate log updates during execution
+      const logInterval = setInterval(() => {
+        setWorkflowSteps(prev => prev.map(step => {
+          if (step.id === newStep.id && step.status === 'running') {
+            const logs = [
+              `Starting ${step.agent.name}...`,
+              'Analyzing input content...',
+              'Applying processing logic...',
+              'Generating output results...'
+            ];
+            return { ...step, logs: logs.slice(0, Math.min(logs.length, (step.logs?.length || 0) + 1)) };
+          }
+          return step;
+        }));
+      }, 800);
+
+      // Execute agent
+      const result = await executeAgent(selectedAgent.id, inputContent);
+      
+      clearInterval(logInterval);
+
+      // Update step status
+      setWorkflowSteps(prev => prev.map(step => {
+        if (step.id === newStep.id) {
+          return {
+            ...step,
+            status: 'completed' as const,
+            output: result.output,
+            logs: result.logs
+          };
+        }
+        return step;
+      }));
+
+      // Set output as next input
+      setUserInput(result.output);
+      
+    } catch (error) {
+      setWorkflowSteps(prev => prev.map(step => {
+        if (step.id === newStep.id) {
+          return { ...step, status: 'error' as const };
+        }
+        return step;
+      }));
+    } finally {
+      setIsExecuting(false);
+    }
+  };
+
+  const clearWorkflow = () => {
+    setWorkflowSteps([]);
+    setUserInput('');
+    setSelectedResources([]);
+    setSelectedAgent(null);
+  };
+
+  return (
+    <div className="min-h-screen bg-gray-50">
+      {/* Header */}
+      <header className="bg-white border-b border-gray-200 px-6 py-4">
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-2xl font-bold text-gray-900">User Story Generator</h1>
+            <p className="text-sm text-gray-600">AI Agent-based Intelligent Requirements Analysis and Story Generation Platform</p>
+          </div>
+          <button
+            onClick={clearWorkflow}
+            className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
+          >
+            Clear Workflow
+          </button>
+        </div>
+      </header>
+
+      <div className="flex h-[calc(100vh-80px)]">
+        {/* Left Sidebar - Input Resources */}
+        <div className="w-80 bg-white border-r border-gray-200 flex flex-col">
+          <div className="p-4 border-b border-gray-200">
+            <h2 className="text-lg font-semibold text-gray-900">Input Resources</h2>
+            <p className="text-sm text-gray-600">Select relevant documents and templates as reference</p>
+          </div>
+          <div className="flex-1 overflow-y-auto p-4 space-y-3">
+            {mockInputResources.map(resource => (
+              <InputResourceCard
+                key={resource.id}
+                resource={resource}
+                isSelected={selectedResources.some(r => r.id === resource.id)}
+                onSelect={handleResourceSelect}
+              />
+            ))}
+          </div>
+        </div>
+
+        {/* Center - Main Workspace */}
+        <div className="flex-1 flex flex-col">
+          {/* Input Area */}
+          <div className="bg-white border-b border-gray-200 p-6">
+            <div className="mb-4">
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Input Content
+              </label>
+              <textarea
+                value={userInput}
+                onChange={(e) => setUserInput(e.target.value)}
+                placeholder="Please enter your requirements description, questions or content to be processed..."
+                className="w-full h-32 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 resize-none"
+              />
+            </div>
+            
+            {/* Selected Resources Display */}
+            {selectedResources.length > 0 && (
+              <div className="mb-4">
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Selected Reference Resources ({selectedResources.length})
+                </label>
+                <div className="flex flex-wrap gap-2">
+                  {selectedResources.map(resource => (
+                    <span
+                      key={resource.id}
+                      className="inline-flex items-center px-3 py-1 rounded-full text-sm bg-blue-100 text-blue-800"
+                    >
+                      {resource.title}
+                      <button
+                        onClick={() => handleResourceSelect(resource)}
+                        className="ml-2 text-blue-600 hover:text-blue-800"
+                      >
+                        ×
+                      </button>
+                    </span>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Selected Agent and Execute Button */}
+            {selectedAgent && (
+              <div className="flex items-center gap-4 p-4 bg-blue-50 rounded-lg border border-blue-200">
+                <div className="flex items-center gap-3 flex-1">
+                  <div className={`w-8 h-8 rounded-lg ${selectedAgent.color} flex items-center justify-center text-white text-sm`}>
+                    {selectedAgent.icon}
+                  </div>
+                  <div>
+                    <h3 className="font-medium text-gray-900">{selectedAgent.name}</h3>
+                    <p className="text-sm text-gray-600">{selectedAgent.description}</p>
+                  </div>
+                </div>
+                <button
+                  onClick={handleExecute}
+                  disabled={!canExecute()}
+                  className={`px-6 py-2 rounded-lg font-medium transition-colors ${
+                    canExecute()
+                      ? 'bg-blue-600 text-white hover:bg-blue-700'
+                      : 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                  }`}
+                >
+                  {isExecuting ? 'Executing...' : 'Execute'}
+                </button>
+              </div>
+            )}
+          </div>
+
+          {/* Workflow Area */}
+          <div className="flex-1 overflow-y-auto p-6" ref={workflowRef}>
+            {workflowSteps.length === 0 ? (
+              <div className="flex items-center justify-center h-full text-gray-500">
+                <div className="text-center">
+                  <div className="text-4xl mb-4">🚀</div>
+                  <p className="text-lg font-medium">Start Your AI Workflow</p>
+                  <p className="text-sm">Select input resources and Agents, then click execute to start generation</p>
+                </div>
+              </div>
+            ) : (
+              <div className="space-y-6">
+                {workflowSteps.map((step, index) => (
+                  <WorkflowStepComponent
+                    key={step.id}
+                    step={step}
+                    isLast={index === workflowSteps.length - 1}
+                  />
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Right Sidebar - Agents */}
+        <div className="w-80 bg-white border-l border-gray-200 flex flex-col">
+          <div className="p-4 border-b border-gray-200">
+            <h2 className="text-lg font-semibold text-gray-900">AI Agents</h2>
+            <p className="text-sm text-gray-600">Select appropriate Agents to process your content</p>
+          </div>
+          <div className="flex-1 overflow-y-auto p-4 space-y-3">
+            {mockAgents.map(agent => (
+              <AgentCard
+                key={agent.id}
+                agent={agent}
+                onSelect={handleAgentSelect}
+                disabled={isExecuting}
+              />
+            ))}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
