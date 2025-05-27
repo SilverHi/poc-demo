@@ -1,12 +1,13 @@
 'use client';
 
 import { useState, useRef, useEffect } from 'react';
-import { InputResource, Agent, WorkflowStep } from '@/types';
+import { InputResource, Agent, ConversationNode } from '@/types';
 import { mockAgents, executeAgent } from '@/data/mockData';
 import { StoredResource } from '../../lib/database';
 import InputResourceCard from '@/components/InputResourceCard';
 import AgentCard from '@/components/AgentCard';
-import WorkflowStepComponent from '@/components/WorkflowStep';
+import ConversationChainComponent from '@/components/ConversationChain';
+import AgentSelectionCard from '@/components/AgentSelectionCard';
 import { useRouter } from 'next/navigation';
 import { 
   Layout, 
@@ -51,27 +52,44 @@ export default function Home() {
   const router = useRouter();
   const [selectedResources, setSelectedResources] = useState<InputResource[]>([]);
   const [userInput, setUserInput] = useState('');
-  const [workflowSteps, setWorkflowSteps] = useState<WorkflowStep[]>([]);
+  const [conversationNodes, setConversationNodes] = useState<ConversationNode[]>([]);
   const [selectedAgent, setSelectedAgent] = useState<Agent | null>(null);
   const [isExecuting, setIsExecuting] = useState(false);
+  const [executionLogs, setExecutionLogs] = useState<string[]>([]);
   const [customAgents, setCustomAgents] = useState<CustomAgent[]>([]);
   const [storedResources, setStoredResources] = useState<StoredResource[]>([]);
   const [resourceSearchQuery, setResourceSearchQuery] = useState('');
   const [filteredStoredResources, setFilteredStoredResources] = useState<StoredResource[]>([]);
   
-  const workflowRef = useRef<HTMLDivElement>(null);
+  const conversationRef = useRef<HTMLDivElement>(null);
 
-  // Scroll to the latest workflow step
+  // Scroll to the latest conversation node
   useEffect(() => {
-    if (workflowRef.current && workflowSteps.length > 0) {
-      workflowRef.current.scrollTop = workflowRef.current.scrollHeight;
+    if (conversationRef.current && conversationNodes.length > 0) {
+      conversationRef.current.scrollTop = conversationRef.current.scrollHeight;
     }
-  }, [workflowSteps]);
+  }, [conversationNodes]);
 
   // Fetch custom agents and resources on component mount
   useEffect(() => {
     fetchCustomAgents();
     fetchStoredResources();
+  }, []);
+
+  // 初始化第一个输入节点
+  useEffect(() => {
+    if (conversationNodes.length === 0) {
+      const initialInputNode: ConversationNode = {
+        id: `input-initial`,
+        type: 'input',
+        content: '',
+        resources: [],
+        timestamp: new Date(),
+        isCurrentInput: true,
+        isEditable: true
+      };
+      setConversationNodes([initialInputNode]);
+    }
   }, []);
 
   // Filter resources based on search query
@@ -117,11 +135,18 @@ export default function Home() {
   const handleResourceSelect = (resource: InputResource) => {
     setSelectedResources(prev => {
       const isSelected = prev.some(r => r.id === resource.id);
-      if (isSelected) {
-        return prev.filter(r => r.id !== resource.id);
-      } else {
-        return [...prev, resource];
-      }
+      const newResources = isSelected 
+        ? prev.filter(r => r.id !== resource.id)
+        : [...prev, resource];
+      
+      // 同时更新当前输入节点的资源
+      setConversationNodes(prevNodes => prevNodes.map(node => 
+        node.isCurrentInput 
+          ? { ...node, resources: newResources }
+          : node
+      ));
+      
+      return newResources;
     });
   };
 
@@ -131,16 +156,26 @@ export default function Home() {
   };
 
   const getInputContent = () => {
-    let content = userInput;
-    if (selectedResources.length > 0) {
-      const resourceContent = selectedResources.map(r => `[${r.title}]: ${r.content}`).join('\n\n');
+    // 优先从当前输入节点获取内容
+    const currentInputNode = conversationNodes.find(node => node.isCurrentInput);
+    let content = currentInputNode ? currentInputNode.content : userInput;
+    const resources = currentInputNode ? (currentInputNode.resources || []) : selectedResources;
+    
+    if (resources.length > 0) {
+      const resourceContent = resources.map(r => `[${r.title}]: ${r.content}`).join('\n\n');
       content = content ? `${content}\n\nReference Resources:\n${resourceContent}` : resourceContent;
     }
     return content;
   };
 
   const canExecute = () => {
-    return selectedAgent && (userInput.trim() || selectedResources.length > 0) && !isExecuting;
+    // 检查是否有当前输入节点或者有用户输入
+    const currentInputNode = conversationNodes.find(node => node.isCurrentInput);
+    const hasContent = currentInputNode ? 
+      (currentInputNode.content.trim() || (currentInputNode.resources && currentInputNode.resources.length > 0)) :
+      (userInput.trim() || selectedResources.length > 0);
+    
+    return selectedAgent && hasContent && !isExecuting;
   };
 
   const executeCustomAgent = async (agentId: string, input: string): Promise<{ output: string; logs: string[] }> => {
@@ -169,89 +204,151 @@ export default function Home() {
     if (!canExecute() || !selectedAgent) return;
 
     setIsExecuting(true);
-    const inputContent = getInputContent();
+    setExecutionLogs([]);
     
-    // Create new workflow step
-    const newStep: WorkflowStep = {
-      id: Date.now().toString(),
-      agent: selectedAgent,
-      input: inputContent,
-      status: 'running',
-      logs: []
-    };
+    // 获取当前输入节点的内容
+    const currentInputNode = conversationNodes.find(node => node.isCurrentInput);
+    const inputContent = currentInputNode ? getInputContent() : userInput;
+    
+    // 如果没有当前输入节点，创建第一个输入节点
+    if (!currentInputNode) {
+      const firstInputNode: ConversationNode = {
+        id: `input-${Date.now()}`,
+        type: 'input',
+        content: userInput,
+        resources: [...selectedResources],
+        timestamp: new Date(),
+        isCurrentInput: false, // 执行后变为历史记录
+        isEditable: false
+      };
+      setConversationNodes(prev => [...prev, firstInputNode]);
+    } else {
+      // 将当前输入节点标记为历史记录
+      setConversationNodes(prev => prev.map(node => 
+        node.isCurrentInput 
+          ? { ...node, isCurrentInput: false, isEditable: false }
+          : node
+      ));
+    }
 
-    setWorkflowSteps(prev => [...prev, newStep]);
+    // Create bubble node for processing
+    const bubbleNode: ConversationNode = {
+      id: `bubble-${Date.now()}`,
+      type: 'bubble',
+      content: `正在使用 ${selectedAgent.name} 处理...`,
+      agent: selectedAgent,
+      status: 'running',
+      logs: [],
+      timestamp: new Date()
+    };
+    
+    setConversationNodes(prev => [...prev, bubbleNode]);
+    const currentAgent = selectedAgent;
     setSelectedAgent(null);
 
     try {
       // Simulate log updates during execution
-      const logInterval = setInterval(() => {
-        setWorkflowSteps(prev => prev.map(step => {
-          if (step.id === newStep.id && step.status === 'running') {
-            const logs = [
-              `Starting ${step.agent.name}...`,
-              'Analyzing input content...',
-              'Applying processing logic...',
-              'Generating output results...'
-            ];
-            return { ...step, logs: logs.slice(0, Math.min(logs.length, (step.logs?.length || 0) + 1)) };
-          }
-          return step;
-        }));
-      }, 800);
+      const logs = [
+        `启动 ${currentAgent.name}...`,
+        '分析输入内容...',
+        '应用处理逻辑...',
+        '生成输出结果...'
+      ];
+      
+      for (let i = 0; i < logs.length; i++) {
+        await new Promise(resolve => setTimeout(resolve, 800));
+        setExecutionLogs(prev => [...prev, logs[i]]);
+        setConversationNodes(prev => prev.map(node => 
+          node.id === bubbleNode.id 
+            ? { ...node, logs: logs.slice(0, i + 1) }
+            : node
+        ));
+      }
 
       let result;
       
       // Check if it's a custom agent or mock agent
-      const isCustomAgent = customAgents.some(agent => agent.id === selectedAgent.id);
+      const isCustomAgent = customAgents.some(agent => agent.id === currentAgent.id);
       
       if (isCustomAgent) {
         // Execute custom agent via API
-        result = await executeCustomAgent(selectedAgent.id, inputContent);
+        result = await executeCustomAgent(currentAgent.id, inputContent);
       } else {
         // Execute mock agent
-        result = await executeAgent(selectedAgent.id, inputContent);
+        result = await executeAgent(currentAgent.id, inputContent);
       }
+
+      // Update bubble node to completed
+      setConversationNodes(prev => prev.map(node => 
+        node.id === bubbleNode.id 
+          ? { ...node, status: 'completed', content: '处理完成', logs: result.logs }
+          : node
+      ));
+
+      // Create output node that becomes the new current input
+      const outputNode: ConversationNode = {
+        id: `output-${Date.now()}`,
+        type: 'output',
+        content: result.output,
+        agent: currentAgent,
+        status: 'completed',
+        timestamp: new Date(),
+        isCurrentInput: true, // 输出节点成为新的当前输入
+        isEditable: true
+      };
       
-      clearInterval(logInterval);
+      setConversationNodes(prev => [...prev, outputNode]);
 
-      // Update step status
-      setWorkflowSteps(prev => prev.map(step => {
-        if (step.id === newStep.id) {
-          return {
-            ...step,
-            status: 'completed' as const,
-            output: result.output,
-            logs: result.logs
-          };
-        }
-        return step;
-      }));
-
-      // Set output as next input
+      // 更新userInput为输出内容，为下一轮做准备
       setUserInput(result.output);
+      setSelectedResources([]);
       
     } catch (error) {
-      setWorkflowSteps(prev => prev.map(step => {
-        if (step.id === newStep.id) {
-          return { 
-            ...step, 
-            status: 'error' as const,
-            output: `Error: ${error instanceof Error ? error.message : 'Unknown error'}`
-          };
-        }
-        return step;
-      }));
+      // Update bubble node to error
+      setConversationNodes(prev => prev.map(node => 
+        node.id === bubbleNode.id 
+          ? { 
+              ...node, 
+              status: 'error', 
+              content: `错误: ${error instanceof Error ? error.message : '未知错误'}`
+            }
+          : node
+      ));
     } finally {
       setIsExecuting(false);
+      setExecutionLogs([]);
     }
   };
 
-  const clearWorkflow = () => {
-    setWorkflowSteps([]);
+  const clearConversation = () => {
+    setConversationNodes([]);
     setUserInput('');
     setSelectedResources([]);
     setSelectedAgent(null);
+    setExecutionLogs([]);
+  };
+
+  const handleResourceRemove = (nodeId: string, resourceId: string) => {
+    setConversationNodes(prev => prev.map(node => 
+      node.id === nodeId && node.resources
+        ? { ...node, resources: node.resources.filter(r => r.id !== resourceId) }
+        : node
+    ));
+  };
+
+  const handleBubbleClick = (nodeId: string) => {
+    // 可以在这里实现点击气泡的逻辑，比如展开详细信息
+    console.log('Clicked bubble:', nodeId);
+  };
+
+  const handleContentChange = (nodeId: string, content: string) => {
+    setConversationNodes(prev => prev.map(node => 
+      node.id === nodeId 
+        ? { ...node, content }
+        : node
+    ));
+    // 同时更新userInput状态，保持同步
+    setUserInput(content);
   };
 
   return (
@@ -275,9 +372,9 @@ export default function Home() {
           </Button>
           <Button
             icon={<ClearOutlined />}
-            onClick={clearWorkflow}
+            onClick={clearConversation}
           >
-            Clear Workflow
+            清空对话
           </Button>
         </Space>
       </Header>
@@ -354,105 +451,20 @@ export default function Home() {
         </Sider>
 
         {/* Center - Main Workspace */}
-        <Content className="flex flex-col">
-          {/* Input Area */}
-          <Card className="border-b border-gray-200 rounded-none">
-            <div className="mb-4">
-              <Text strong className="text-sm text-gray-700 mb-2 block">
-                Input Content
-              </Text>
-              <TextArea
-                value={userInput}
-                onChange={(e) => setUserInput(e.target.value)}
-                placeholder="Please enter your requirements description, questions or content to be processed..."
-                rows={4}
-                className="resize-none"
-              />
-            </div>
-            
-            {/* Selected Resources Display */}
-            {selectedResources.length > 0 && (
-              <div className="mb-4">
-                <Text strong className="text-sm text-gray-700 mb-2 block">
-                  Selected Reference Resources ({selectedResources.length})
-                </Text>
-                <Space wrap>
-                  {selectedResources.map(resource => (
-                    <Tag
-                      key={resource.id}
-                      closable
-                      onClose={() => handleResourceSelect(resource)}
-                      color="blue"
-                    >
-                      {resource.title}
-                    </Tag>
-                  ))}
-                </Space>
-              </div>
-            )}
-
-            {/* Selected Agent and Execute Button */}
-            {selectedAgent && (
-              <Card className="bg-blue-50 border-blue-200">
-                <Space className="w-full justify-between" align="center">
-                  <Space align="center">
-                    <Avatar 
-                      className={selectedAgent.color}
-                      size="large"
-                      style={{ 
-                        backgroundColor: selectedAgent.color.includes('bg-') ? undefined : selectedAgent.color,
-                        color: 'white'
-                      }}
-                    >
-                      {selectedAgent.icon}
-                    </Avatar>
-                    <div>
-                      <Text strong className="text-gray-900">{selectedAgent.name}</Text>
-                      <div className="text-sm text-gray-600">{selectedAgent.description}</div>
-                    </div>
-                  </Space>
-                  <Button
-                    type="primary"
-                    icon={<PlayCircleOutlined />}
-                    onClick={handleExecute}
-                    disabled={!canExecute()}
-                    loading={isExecuting}
-                  >
-                    {isExecuting ? 'Executing...' : 'Execute'}
-                  </Button>
-                </Space>
-              </Card>
-            )}
-          </Card>
-
-          {/* Workflow Area */}
-          <div className="flex-1 overflow-y-auto p-6" ref={workflowRef}>
-            {workflowSteps.length === 0 ? (
-              <div className="flex items-center justify-center h-full">
-                <Empty
-                  image={<RocketOutlined style={{ fontSize: 64, color: '#d9d9d9' }} />}
-                  description={
-                    <div>
-                      <Text strong className="text-lg">Start Your AI Workflow</Text>
-                      <br />
-                      <Text type="secondary" className="text-sm">
-                        Select input resources and Agents, then click execute to start generation
-                      </Text>
-                    </div>
-                  }
-                />
-              </div>
-            ) : (
-              <div className="space-y-6">
-                {workflowSteps.map((step, index) => (
-                  <WorkflowStepComponent
-                    key={step.id}
-                    step={step}
-                    isLast={index === workflowSteps.length - 1}
-                  />
-                ))}
-              </div>
-            )}
+        <Content className="flex flex-col bg-gray-50">
+          {/* 完整的对话链滑动窗口 */}
+          <div className="flex-1 h-full">
+            <ConversationChainComponent
+              nodes={conversationNodes}
+              onResourceRemove={handleResourceRemove}
+              onBubbleClick={handleBubbleClick}
+              onContentChange={handleContentChange}
+              selectedAgent={selectedAgent}
+              onExecute={handleExecute}
+              canExecute={!!canExecute()}
+              isExecuting={isExecuting}
+              executionLogs={executionLogs}
+            />
           </div>
         </Content>
 
