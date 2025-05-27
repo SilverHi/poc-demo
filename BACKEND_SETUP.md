@@ -12,7 +12,13 @@ The application now includes a complete backend system with:
 
 ### 1. OpenAI API Setup
 
-Edit the `config/openai.json` file to configure your OpenAI API key:
+Copy the example configuration file and configure your OpenAI API key:
+
+```bash
+cp config/openai.json.example config/openai.json
+```
+
+Then edit the `config/openai.json` file to add your OpenAI API key:
 
 ```json
 {
